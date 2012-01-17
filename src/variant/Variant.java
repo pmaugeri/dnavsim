@@ -6,14 +6,16 @@ package variant;
  * 
  * @author pmaugeri
  */
-public class Variant {
+public abstract class Variant {
 
 	protected String refBases;
 	protected String altBases;
 	
-	public enum type {
-		INSERTION, DELETION
+	public enum TYPE {
+		SNP, INSERTION, DELETION, NONE
 	}
+	
+	protected TYPE type;
 	
 	/**
 	 * Negative when variant is a deletion,
@@ -24,13 +26,15 @@ public class Variant {
 	
 	protected Variant() {
 		Math.random(); // init
+		this.type = TYPE.NONE;
+		
 	}
 	
-	public Variant.type getRandomType() {
+	public Variant.TYPE getRandomType() {
 		if (Math.random() < 0.5) 
-			return Variant.type.INSERTION;
+			return Variant.TYPE.INSERTION;
 		else
-			return Variant.type.DELETION;
+			return Variant.TYPE.DELETION;
 	}
 
 	public int getLength() {
@@ -51,4 +55,15 @@ public class Variant {
 		return altBases;
 	}
 
+	public static void setVariantTypeFreq(TYPE type, double freq) {
+		
+	}
+
+	public TYPE getType() {
+		return type;
+	}
+	
+	public abstract void setFrequency(double freq);
+	public abstract double getFrequency();
+	
 }

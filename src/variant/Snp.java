@@ -1,9 +1,12 @@
 package variant;
 
 public class Snp extends Variant {
-
+	
+	private static double frequency;
+	
 	public Snp(char ref) {
 		super();
+		type = TYPE.SNP;
 		length = 0;
 		char alt;		
 		do {
@@ -23,5 +26,15 @@ public class Snp extends Variant {
 		refBases = Character.toString(ref);
 		altBases = Character.toString(alt);
 	}
-	
+
+	@Override
+	public void setFrequency(double freq) {
+		Snp.frequency = freq;
+	}
+
+	@Override
+	public double getFrequency() {
+		return Snp.frequency;
+	}
+
 }

@@ -20,7 +20,7 @@ public class VCFWriter extends PrintWriter {
 		println("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\t" + SAMPLE_NAME);
 	}
 
-	public void printVariant(String chr, String pos, String ref, String alt) {
+	public void printVariant(String chr, String pos, String ref, String alt, String info) {
 		print(chr);		// CHROM
 		print("\t");
 		print(pos);		// POS
@@ -40,7 +40,8 @@ public class VCFWriter extends PrintWriter {
 		int p = Integer.parseInt(pos);
 		int line = (p / 60) + 2;
 		int col = p % 60;
-		print("LINE:" + line + ", COL: " + col);		// INFO
+		print(info + ";LINE=" + line + ",COL=" + col);		// INFO
+		
 		print("\t");
 		print(".");		// FORMAT
 		print("\t");

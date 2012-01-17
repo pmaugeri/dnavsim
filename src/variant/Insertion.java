@@ -3,6 +3,8 @@ package variant;
 
 public class Insertion extends Variant {
 
+	private static double frequency;
+	
 	/**
 	 * Constructor.
 	 * Generate a insertion which length is greater than minLength and
@@ -13,6 +15,8 @@ public class Insertion extends Variant {
 	 * @param maxLength
 	 */
 	public Insertion(char ref, int minLength, int maxLength) {
+		super();
+		type = TYPE.INSERTION;
 		refBases = Character.toString(ref);
 		altBases = "";
 		length = 0;
@@ -30,6 +34,16 @@ public class Insertion extends Variant {
 			else
 				altBases += "T";				
 		}
+	}
+
+	@Override
+	public void setFrequency(double freq) {
+		Insertion.frequency = freq;
+	}
+
+	@Override
+	public double getFrequency() {
+		return Insertion.frequency;
 	}
 
 }

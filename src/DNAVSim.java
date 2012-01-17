@@ -5,14 +5,17 @@ import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.io.PrintWriter;
+import java.util.Enumeration;
 import java.util.Properties;
+import java.util.Vector;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 import variant.Deletion;
 import variant.Insertion;
 import variant.Snp;
+import variant.Variant;
+import variant.VariantHandler;
 
 
 public class DNAVSim {
@@ -24,28 +27,40 @@ public class DNAVSim {
 	public static String CONFIG_FILENAME = "dnavsim.cfg";
 
 	public static String FASTA_FILE_COLUMNS_KEY = "out.fasta.columns";
-	public static String SNP_FREQUENCY_KEY = "snp.frequency";
-	public static String INDEL_FREQUENCY_KEY = "indel.frequency";
-	public static String INDEL_INSERTION_FREQUENCY_KEY = "indel.insertion.frequency";
+	public static String VARIANT_SNP_FREQ_KEY = "variant.snp.freq";
+	public static String VARIANT_INS_FREQ_KEY = "variant.ins.freq";
+	public static String VARIANT_DEL_FREQ_KEY = "variant.del.freq";
 	public static String INDEL_LENGTH_MIN_KEY = "indel.length.min";
 	public static String INDEL_LENGTH_MAX_KEY = "indel.length.max";
-	public static String CONFIG_KEYS[] = { SNP_FREQUENCY_KEY,
-			INDEL_FREQUENCY_KEY, INDEL_INSERTION_FREQUENCY_KEY,
-			INDEL_LENGTH_MIN_KEY, INDEL_LENGTH_MAX_KEY, FASTA_FILE_COLUMNS_KEY };
+	public static String REGION_SET_COUNT_KEY = "regionset.count";
+	
+	public static String REGION_SET_NAME_KEY = "regionset.#.name"; 
+	public static String REGION_SET_VARIANT_FREQ_KEY = "regionset.#.variantFreq"; 
+	public static String REGION_SET_BED_KEY = "regionset.#.bed"; 
+	
+	public static String REGION_SET_DEFAULT_FREQ_KEY = "regionset.default.variant.freq"; 
+	
+	public static String CONFIG_KEYS[] = { VARIANT_SNP_FREQ_KEY,
+			VARIANT_INS_FREQ_KEY, VARIANT_DEL_FREQ_KEY, INDEL_LENGTH_MIN_KEY,
+			INDEL_LENGTH_MAX_KEY, FASTA_FILE_COLUMNS_KEY, REGION_SET_COUNT_KEY,
+			REGION_SET_DEFAULT_FREQ_KEY };
 
 	/**
 	 * Configuration parameters loaded from configuration file
 	 */
 	private int FASTA_FILE_COLUMNS;
 	private double SNP_FREQ;
-	private double INDEL_FREQ;
-	private double INSERTION_FREQ;
+	private double INS_FREQ;
+	private double DEL_FREQ;
+	private double DEFAULT_REGION_FREQ;	
 	private int INDEL_MIN_LENGTH;
 	private int INDEL_MAX_LENGTH;
+	private Vector<RegionSet> REGION_SETS;
 	
 	// The configuration file 
 	private Properties cfg;
-	
+
+
 	
 	/**
 	 * Parse a FASTA header line to find out the chromosome name
@@ -98,21 +113,43 @@ public class DNAVSim {
 			}
 		}
 		// SNP frequency parameter
-		SNP_FREQ = Double.parseDouble(cfg.getProperty(SNP_FREQUENCY_KEY)); 
+		SNP_FREQ = Double.parseDouble(cfg.getProperty(VARIANT_SNP_FREQ_KEY)); 
 		if (SNP_FREQ < 0 || SNP_FREQ > 1) {
 			log.severe("The configuration parameter "
-					+ SNP_FREQUENCY_KEY
+					+ VARIANT_SNP_FREQ_KEY
 					+ " should be in the range [0.0-1.0]! Please correct. Exiting...");
 			System.exit(1);
 		}
-
+		if (SNP_FREQ > 0) {
+			Variant v = new Snp('A');
+			v.setFrequency(SNP_FREQ);
+			VariantHandler.addVariant(v);
+		}
+		
 		// INDEL frequency parameter
-		INDEL_FREQ = Double.parseDouble(cfg.getProperty(INDEL_FREQUENCY_KEY)); 
-		if (INDEL_FREQ < 0 || INDEL_FREQ > 1) {
+		INS_FREQ = Double.parseDouble(cfg.getProperty(VARIANT_INS_FREQ_KEY)); 
+		if (INS_FREQ < 0 || INS_FREQ > 1) {
 			log.severe("The configuration parameter "
-					+ INDEL_FREQUENCY_KEY
+					+ VARIANT_INS_FREQ_KEY
 					+ " should be in the range [0.0-1.0]! Please correct. Exiting...");
 			System.exit(1);
+		}
+		if (INS_FREQ > 0) {
+			Variant v = new Insertion('A', 0, 0);
+			v.setFrequency(INS_FREQ);
+			VariantHandler.addVariant(v);
+		}
+		DEL_FREQ = Double.parseDouble(cfg.getProperty(VARIANT_DEL_FREQ_KEY)); 
+		if (DEL_FREQ < 0 || DEL_FREQ > 1) {
+			log.severe("The configuration parameter "
+					+ VARIANT_DEL_FREQ_KEY
+					+ " should be in the range [0.0-1.0]! Please correct. Exiting...");
+			System.exit(1);
+		}
+		if (DEL_FREQ > 0) {
+			Variant v = new Deletion(0, 0);
+			v.setFrequency(DEL_FREQ);
+			VariantHandler.addVariant(v);
 		}
 
 		// Indel min/max length
@@ -136,15 +173,32 @@ public class DNAVSim {
 			System.exit(1);
 		}
 		
-		// Insertion frequency [0.0-1.0]
-		INSERTION_FREQ = Double.parseDouble(cfg.getProperty(INDEL_INSERTION_FREQUENCY_KEY)); 
-		if (INSERTION_FREQ < 0 || INSERTION_FREQ > 1) {
+		// Load region sets
+		REGION_SETS = new Vector<RegionSet>();
+		int regionSetCount = Integer.parseInt(cfg.getProperty(REGION_SET_COUNT_KEY));
+		if (regionSetCount > 0) {
+			for (int i=1; i<=regionSetCount; i++) {
+				String name = cfg.getProperty(REGION_SET_NAME_KEY.replaceAll("#", Integer.toString(i)));
+				String freq = cfg.getProperty(REGION_SET_VARIANT_FREQ_KEY.replaceAll("#", Integer.toString(i)));
+				String bed = cfg.getProperty(REGION_SET_BED_KEY.replaceAll("#", Integer.toString(i)));
+				try {
+					RegionSet region = new RegionSet(name, Double.parseDouble(freq), bed);
+					REGION_SETS.add(region);
+				} catch (Exception e) {
+					e.printStackTrace();
+					log.severe("An error occured while reading region set parameters from configuration file!\n" + e.getMessage() + "\nExiting...");
+					System.exit(1);
+				}
+			}
+		}
+		DEFAULT_REGION_FREQ = Double.parseDouble(cfg.getProperty(REGION_SET_DEFAULT_FREQ_KEY)); 
+		if (DEFAULT_REGION_FREQ < 0 || DEFAULT_REGION_FREQ > 1) {
 			log.severe("The configuration parameter "
-					+ INDEL_INSERTION_FREQUENCY_KEY
+					+ REGION_SET_DEFAULT_FREQ_KEY
 					+ " should be in the range [0.0-1.0]! Please correct. Exiting...");
 			System.exit(1);
 		}
-				
+		
 	}
 	
 	
@@ -154,8 +208,10 @@ public class DNAVSim {
 	 * 
 	 * @param inFasta the input FASTA file (reference genome)
 	 * @param outFasta the output FASTA file (reference genome with simulated variations)
+	 * @param vcfFile the file to output variants in VCF format
+	 * @param intronBedFile a BED file with the ranges of ranges
 	 */
-	public DNAVSim(String inFasta, String outFasta, String vcfFile) {
+	public DNAVSim(String inFasta, String outFasta, String vcfFile, String intronBedFile) {
 		
 		// Initialize logger
 		log = Logger.getLogger("DNAVSim");
@@ -168,7 +224,6 @@ public class DNAVSim {
 		log.info("Writing variants to VCF file '" + vcfFile + "'...");
 	
 		loadConfiguration();
-		
 		
 		BufferedReader in = null;
 		FastaFileWriter out = null;
@@ -188,7 +243,7 @@ public class DNAVSim {
 			System.exit(1);
 		}
 		log.info("FASTA files successfully opened");
-		
+
 		log.info("Processing FASTA file '" + inFasta + "'...");
 		
 		String line = null;
@@ -201,6 +256,7 @@ public class DNAVSim {
 		
 		// Initialize random numbers generator
 		Math.random();
+		double r = Math.random();		
 		
 		try {
 			
@@ -226,32 +282,53 @@ public class DNAVSim {
 					for (int i=0; i<lineLength; i++) {
 						
 						pos++;
+
+						// Frequency to see a variant at this position
+						double variantFrequency = -1;
+						
+						// Determine the frequency of a variant at this position
+						// checking the region sets defined by user
+						String info = "";
+						for (Enumeration<RegionSet> enume = REGION_SETS.elements(); enume.hasMoreElements(); ) {
+							RegionSet region = enume.nextElement();
+							if (region.hasFeature(chr, pos-1)) {
+								variantFrequency = region.getVariantFrequency();
+								info += "RegionSet=" + region.getName();
+							}							
+						}
+						if (variantFrequency == -1) {
+							variantFrequency = DEFAULT_REGION_FREQ;
+							info += "RegionSet=DEFAULT";
+						}						
 						
 						ref = lineChar[i];
 
 						if (ref != 'N') {
 
-							double r = Math.random();
+							r = Math.random();
 
-							/**
-							 * create INDEL
-							 */
-							if (r < INDEL_FREQ) {
-								
+							// A variant is to be created here
+							if (r < variantFrequency) {
+
+								// Choose a variant type to create
+								Variant.TYPE vType = VariantHandler.chooseRandomVariant();								
+									
 								/**
-								 * Insertion
+								 * Insertion (INDEL)
 								 */
-								if (Math.random() < INSERTION_FREQ) {
+								if (vType == Variant.TYPE.INSERTION) {
 									Insertion ins = new Insertion(ref, INDEL_MIN_LENGTH, INDEL_MAX_LENGTH);
 									alt =  ref + ins.getAlternate();
-									out.printBases(alt);
-									vcf.printVariant(chr, Integer.toString(pos), Character.toString(ref), alt);
+									out.printBases(alt);									
+									vcf.printVariant(chr, Integer.toString(pos), Character.toString(ref), alt, info);
 								}
-								
+								else
+									
 								/**
-								 * Deletion
+								 * Deletion (INDEL)
 								 */
-								else {
+								if (vType == Variant.TYPE.DELETION) {
+
 									Deletion del = new Deletion(INDEL_MIN_LENGTH, INDEL_MAX_LENGTH);
 									alt = Character.toString(ref);
 									String refBases = Character.toString(ref);
@@ -283,31 +360,30 @@ public class DNAVSim {
 										refBases += lineChar[i];
 									}
 									
-									vcf.printVariant(chr, Integer.toString(pos), refBases, alt);
+									vcf.printVariant(chr, Integer.toString(pos), refBases, alt, info);
 									out.printBase(ref);
 									pos += del.getLength();
 								}
+								else
+									
+								/**
+								 * create SNP
+								 */
+								if (vType == Variant.TYPE.SNP) {
+									Snp s = new Snp(lineChar[i]);
+									alt = s.getAlternate();
+									vcf.printVariant(chr, Integer.toString(pos), Character.toString(ref), alt, info);
+									out.printBases(alt);
+								}
+
+								/**
+								 * No variation
+								 */
+								else {
+									out.printBase(ref);
+								}
 								
 							}
-							else
-								
-							/**
-							 * create SNP
-							 */
-							if (r < SNP_FREQ) {
-								Snp s = new Snp(lineChar[i]);
-								alt = s.getAlternate();
-								vcf.printVariant(chr, Integer.toString(pos), Character.toString(ref), alt);
-								out.printBases(alt);
-							}
-
-							/**
-							 * No variation
-							 */
-							else {
-								out.printBase(ref);
-							}
-
 						}
 						
 						/**
@@ -348,10 +424,10 @@ public class DNAVSim {
 
 		
 		if (args.length < 3) {
-			System.out.println("Usage: java DNAVSim [genome FASTA file name] [output file (FASTA file)] [output VCF file]");
+			System.out.println("Usage: java DNAVSim [genome FASTA file name] [output file (FASTA file)] [output VCF file] [introns ranges BED file]");
 			System.exit(1);
 		}
-		DNAVSim sim = new DNAVSim(args[0], args[1], args[2]);
+		DNAVSim sim = new DNAVSim(args[0], args[1], args[2], args[3]);
 		
 	}
 
