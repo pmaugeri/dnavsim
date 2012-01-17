@@ -340,12 +340,12 @@ public class DNAVSim {
 										// End of line, read next one
 										if (i==line.length()) {
 											line = in.readLine();
-											lineChar = new char[line.length()];
-											line.getChars(0, line.length(), lineChar, 0);
-											lineLength = line.length();
 											if (line == null) { // Reduce deletion length as we reached EOF
 												break;
 											}
+											lineChar = new char[line.length()];
+											line.getChars(0, line.length(), lineChar, 0);
+											lineLength = line.length();
 											if (line.startsWith(";") || line.startsWith(">")) { 
 												out.println(line);
 												chr = parseFastaHeaderLine(line);
